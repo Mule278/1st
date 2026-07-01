@@ -1,43 +1,19 @@
-import os
-import socket # 引入底层网络控制工具
-
-# 【关键修复】给 Python 设定“耐心值”：全局网络请求最多等 3 秒！
-# 如果 3 秒没连上，强制抛出异常，瞬间触发我们的容灾机制！
-socket.setdefaulttimeout(3.0) 
-
-os.environ["http_proxy"] = ""
-os.environ["https_proxy"] = ""
-
 import streamlit as st
-import pandas as pd
-# ... 下面保留你原来的所有代码 ...
-import os
-os.environ["http_proxy"] = ""
-os.environ["https_proxy"] = ""
-
-import streamlit as st
-import pandas as pd
-import numpy as np
+import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-# 尝试导入 akshare，如果失败也不影响网页运行
-try:
-    import akshare as ak
-    HAS_AK = True
-except ImportError:
-    HAS_AK = False
+st.set_page_config(page_title="全球核心资产看板 (云端版)", page_icon="🌍", layout="wide")
+st.title("🌍 全球核心资产看板 (云端直连版)")
+st.write("当前运行环境：美国云服务器 | 数据源：Yahoo Finance (海外直连，无视国内防火墙)")
 
-st.set_page_config(page_title="中国核心资产看板 (终极防御版)", page_icon="🛡️", layout="wide")
-st.title("🛡️ 核心资产：A股全景看板 (终极防御版)")
-st.write("已启用【军工级容灾机制】：如果网络拦截了真实数据，系统将自动切换至模拟数据，保证网页永不崩溃！")
-
+# 雅虎财经的 A股代码规则：上交所加 .SS，深交所加 .SZ
 stock_dict = {
-    "贵州茅台 (白酒)": "600519",
-    "五粮液 (白酒)": "000858",
-    "中国海油 (能源)": "600938", 
-    "招商银行 (金融)": "600036",
-    "比亚迪 (新能源)": "002594"
+    "贵州茅台 (A股)": "600519.SS",
+    "五粮液 (A股)": "000858.SZ",
+    "腾讯控股 (港股)": "0700.HK",
+    "特斯拉 (美股)": "TSLA",
+    "英伟达 (美股)": "NVDA"
 }
 
 col1, col2 = st.columns(2)
@@ -45,93 +21,44 @@ with col1:
     selected_name = st.selectbox("🎯 请选择要查询的资产：", list(stock_dict.keys()))
     symbol = stock_dict[selected_name]
 with col2:
-    chart_type = st.radio("📊 请选择图表类型：", ["专业 K线图 (蜡烛图)", "简单折线图 (收盘价)"])
+    chart_type = st.radio("📊 请选择图表类型：", ["专业 K线图", "简单折线图"])
 
-# ================= 容灾核心：生成逼真的模拟数据 =================
-def generate_mock_kline(days=90):
-    """当真实网络被墙时，生成逼真的模拟K线数据"""
-    dates = pd.date_range(end=datetime.now(), periods=days, freq='B')
-    close = 100 + np.random.randn(days).cumsum() * 2
-    open_p = close + np.random.randn(days)
-    high = np.maximum(open_p, close) + np.abs(np.random.randn(days))
-    low = np.minimum(open_p, close) - np.abs(np.random.randn(days))
-    return pd.DataFrame({'日期': dates.strftime("%Y-%m-%d"), '开盘': open_p, '最高': high, '最低': low, '收盘': close})
-
-def generate_mock_news():
-    """当真实新闻接口失效时，生成模拟新闻"""
-    now = datetime.now()
-    return pd.DataFrame([
-        {"时间": (now - timedelta(minutes=5)).strftime("%H:%M:%S"), "内容": f"【突发】{selected_name} 获主力资金净流入超5亿元，机构持续看好。"},
-        {"时间": (now - timedelta(minutes=15)).strftime("%H:%M:%S"), "内容": "【行业】相关产业链上下游企业订单饱满，预计三季度业绩将超预期。"},
-        {"时间": (now - timedelta(minutes=32)).strftime("%H:%M:%S"), "内容": "【宏观】央行今日开展1000亿元逆回购操作，市场流动性保持合理充裕。"},
-        {"时间": (now - timedelta(minutes=45)).strftime("%H:%M:%S"), "内容": f"【研报】中金公司发布最新研报，维持 {selected_name} “跑赢行业”评级。"},
-        {"时间": (now - timedelta(minutes=60)).strftime("%H:%M:%S"), "内容": "【市场】北向资金今日早盘净买入超30亿元，核心资产受外资青睐。"}
-    ])
-
-# ================= 抓取与展示逻辑 =================
-if st.button("📡 全面抓取：行情 + 实时电报"):
-    
-    # --- 通道一：行情数据 ---
-    st.subheader("📊 行情数据区")
-    with st.spinner('正在尝试突破防火墙获取真实行情...'):
-        df = pd.DataFrame()
-        is_mock_kline = False
-        
-        if HAS_AK:
-            try:
-                end_date = datetime.now().strftime("%Y%m%d")
-                start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
-                df = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start_date, end_date=end_date, adjust="qfq")
-                if df.empty: raise ValueError("数据为空")
-            except Exception:
-                # 真实请求失败，瞬间切换到模拟数据
-                df = generate_mock_kline()
-                is_mock_kline = True
-        else:
-            df = generate_mock_kline()
-            is_mock_kline = True
-
-        if is_mock_kline:
-            st.warning("⚠️ 真实网络请求被您的校园网/防火墙拦截。已自动启用【容灾机制】，展示模拟演示数据。")
-        else:
-            st.success("🎉 成功突破网络封锁，获取到真实行情数据！")
+if st.button("📡 跨洋抓取真实数据"):
+    with st.spinner('云服务器正在向华尔街发送请求...'):
+        try:
+            # 使用 yfinance 抓取过去 3 个月的真实数据
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(period="3mo")
             
-        df['日期'] = df['日期'].astype(str) 
-        fig = go.Figure()
-        if chart_type == "专业 K线图 (蜡烛图)":
-            fig.add_trace(go.Candlestick(x=df['日期'], open=df['开盘'], high=df['最高'], low=df['最低'], close=df['收盘'], name="K线"))
-        else:
-            fig.add_trace(go.Scatter(x=df['日期'], y=df['收盘'], mode='lines+markers', line=dict(color='red', width=2), name="收盘价"))
-        
-        fig.update_xaxes(type='category', tickangle=45)
-        fig.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=400)
-        st.plotly_chart(fig, use_container_width=True)
-
-    st.divider()
-
-    # --- 通道二：新闻数据 ---
-    st.subheader("⚡ 财联社：全市场实时电报")
-    with st.spinner('正在尝试连接新闻专线...'):
-        news_df = pd.DataFrame()
-        is_mock_news = False
-        
-        if HAS_AK:
-            try:
-                # 尝试用最新的全局新闻接口
-                news_df = ak.stock_info_global_cls()
-                if news_df.empty: raise ValueError("数据为空")
-                if '发布时间' in news_df.columns and '标题' in news_df.columns:
-                    news_df = news_df[['发布时间', '标题']].rename(columns={'发布时间': '时间', '标题': '内容'})
-            except Exception:
-                is_mock_news = True
-                news_df = generate_mock_news()
-        else:
-            is_mock_news = True
-            news_df = generate_mock_news()
-
-        if is_mock_news:
-            st.warning("⚠️ 真实新闻接口被拦截或发生变更。已自动启用【容灾机制】，展示模拟演示数据。")
-        else:
-            st.success("🎉 成功获取真实新闻数据！")
-            
-        st.dataframe(news_df.head(5), use_container_width=True)
+            if not df.empty:
+                st.success(f"🎉 抓取成功！这是来自全球金融数据库的【真实数据】！")
+                
+                # 处理时区和日期格式
+                df.index = df.index.strftime("%Y-%m-%d")
+                
+                fig = go.Figure()
+                if chart_type == "专业 K线图":
+                    fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="K线"))
+                else:
+                    fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines+markers', line=dict(color='red', width=2), name="收盘价"))
+                
+                fig.update_xaxes(type='category', tickangle=45)
+                fig.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=400)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 展示最新新闻 (雅虎财经自带的英文新闻)
+                st.subheader("📰 华尔街视野：最新相关资讯")
+                news = ticker.news
+                if news:
+                    for article in news[:5]:
+                        with st.container():
+                            st.markdown(f"#### [{article['title']}]({article['link']})")
+                            st.caption(f"来源: {article['publisher']}")
+                            st.write("---")
+                else:
+                    st.info("暂无该资产的最新海外资讯。")
+            else:
+                st.error("抓取失败：数据为空。")
+                
+        except Exception as e:
+            st.error(f"抓取报错：{e}")
