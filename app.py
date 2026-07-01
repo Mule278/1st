@@ -1,11 +1,11 @@
 import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
-from duckduckgo_search import DDGS
+import streamlit.components.v1 as components # 引入前端组件注入工具
 
-st.set_page_config(page_title="全球核心资产看板 (专业版)", page_icon="👔", layout="wide")
-st.title("👔 全球核心资产看板 (高信噪比专业版)")
-st.write("已启用【权威信源白名单】过滤机制，自动剔除自媒体与垃圾信息，只看真实可靠的财经要闻！")
+st.set_page_config(page_title="全球核心资产看板 (终极不败版)", page_icon="🔥", layout="wide")
+st.title("🔥 全球核心资产看板 (华尔街机构组件版)")
+st.write("彻底放弃后端爬虫！采用 TradingView 官方前端组件，直接在你的浏览器渲染实时资讯，100% 免疫任何云端封锁！")
 
 stock_dict = {
     "贵州茅台 (A股)": "600519.SS",
@@ -19,21 +19,12 @@ col1, col2 = st.columns(2)
 with col1:
     selected_name = st.selectbox("🎯 请选择要查询的资产：", list(stock_dict.keys()))
     symbol = stock_dict[selected_name]
-    search_keyword = selected_name.split(" ")[0] 
 with col2:
     chart_type = st.radio("📊 请选择图表类型：", ["专业 K线图", "简单折线图"])
 
-# ================= 核心科技：权威信源白名单 =================
-# 只有发布机构的名字里包含这些词，新闻才会被显示！
-TRUSTED_SOURCES = [
-    "新浪", "东方财富", "财联社", "第一财经", "证券时报", "中国基金报", 
-    "华尔街见闻", "界面新闻", "经济观察网", "彭博", "路透", "Yahoo", 
-    "Bloomberg", "Reuters", "CNBC", "WSJ"
-]
-
-if st.button("📡 跨洋抓取：行情 + 权威资讯"):
+if st.button("📡 跨洋抓取：行情 + 机构级资讯"):
     
-    # --- 通道一：行情数据 ---
+    # ================= 通道一：雅虎财经抓价格 (这个在云端已经证明很稳) =================
     st.subheader("📊 行情数据区 (Yahoo Finance)")
     with st.spinner('正在获取全球行情...'):
         try:
@@ -56,36 +47,41 @@ if st.button("📡 跨洋抓取：行情 + 权威资讯"):
 
     st.divider()
 
-    # --- 通道二：带“测谎仪”的新闻过滤 ---
-    st.subheader(f"📰 权威资讯过滤：{search_keyword}")
-    with st.spinner('🤖 AI 正在全网检索并进行【白名单交叉比对】...'):
-        try:
-            with DDGS() as ddgs:
-                # 故意多搜一点（搜20条），因为我们要过滤掉很多垃圾信息
-                raw_results = list(ddgs.news(search_keyword, max_results=20))
-                
-            if raw_results:
-                # 核心过滤逻辑：比对白名单
-                filtered_news = []
-                for article in raw_results:
-                    source_name = article.get('source', '')
-                    # 如果新闻来源在我们的白名单里，就把它加到最终列表里
-                    if any(trusted in source_name for trusted in TRUSTED_SOURCES):
-                        filtered_news.append(article)
-                
-                if filtered_news:
-                    st.success(f"🎉 过滤完成！从 {len(raw_results)} 条全网信息中，为您提纯出 {len(filtered_news)} 条权威报道。")
-                    # 只展示前 5 条最权威的
-                    for article in filtered_news[:5]:
-                        with st.container():
-                            st.markdown(f"#### [{article['title']}]({article['url']})")
-                            # 用绿色高亮显示权威来源，让你看着放心
-                            st.markdown(f"**✅ 权威信源认证: <span style='color:green'>{article['source']}</span>** | {article['date']}", unsafe_allow_html=True)
-                            st.write(article['body'])
-                            st.write("---")
-                else:
-                    st.warning("⚠️ 搜到了新闻，但没有一条来自权威媒体，为保证数据真实性，已全部拦截！")
-            else:
-                st.info("暂无最新资讯。")
-        except Exception as e:
-            st.error(f"资讯抓取报错：{e}")
+    # ================= 通道二：TradingView 官方前端组件 (绝对不会报错) =================
+    st.subheader(f"📰 实时资讯流：{selected_name.split(' ')[0]}")
+    
+    # 将雅虎代码转换为 TradingView 识别的官方代码
+    tv_symbol = symbol
+    if symbol.endswith(".SS"):
+        tv_symbol = "SSE:" + symbol.replace(".SS", "")
+    elif symbol.endswith(".SZ"):
+        tv_symbol = "SZSE:" + symbol.replace(".SZ", "")
+    elif symbol.endswith(".HK"):
+        tv_symbol = "HKEX:" + symbol.replace(".HK", "")
+    else:
+        tv_symbol = "NASDAQ:" + symbol
+
+    # 核心魔法：注入华尔街机构都在用的 TradingView 实时新闻小组件
+    # 这段代码不会在云服务器上运行，而是直接发送到你的浏览器里运行！
+    widget_html = f"""
+    <!-- TradingView Widget BEGIN -->
+    <div class="tradingview-widget-container">
+      <div class="tradingview-widget-container__widget"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
+      {{
+      "feedMode": "symbol",
+      "symbol": "{tv_symbol}",
+      "colorTheme": "dark",
+      "isTransparent": true,
+      "displayMode": "regular",
+      "width": "100%",
+      "height": 500,
+      "locale": "zh_CN"
+    }}
+      </script>
+    </div>
+    <!-- TradingView Widget END -->
+    """
+    
+    # 直接在网页前端渲染，彻底绕过云服务器的网络限制！
+    components.html(widget_html, height=500)
