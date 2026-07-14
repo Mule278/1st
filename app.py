@@ -132,22 +132,27 @@ if prompt := st.chat_input(f"向 Gemini 提问关于 {selected_name.split(' ')[0
             try:
                 # 将 Streamlit 的记忆格式转换为 Gemini 认识的格式
                 gemini_history = []
-                for m in st.session_state.messages[:-1]: # 不包含刚发的这条
+                for m in st.session_state.messages[:-1]: 
                     role = "user" if m["role"] == "user" else "model"
                     gemini_history.append({"role": role, "parts": [m["content"]]})
                 
-                # 实例化你选择的模型，并注入历史记忆
                 model = genai.GenerativeModel(actual_model_id)
                 chat = model.start_chat(history=gemini_history)
                 
-                # 发送当前问题并获取回答
-                response = chat.send_message(prompt)
+                # 【核心破壁魔法】：开启 stream=True，把大段文本拆成碎片发送！
+                response = chat.send_message(prompt, stream=True)
                 
-                # 显示回答
-                message_placeholder.markdown(response.text)
+                full_response = ""
+                # 像打字机一样，收到一个碎片就立刻显示在网页上
+                for chunk in response:
+                    full_response += chunk.text
+                    message_placeholder.markdown(full_response + "▌") # 加上闪烁的光标
+                
+                # 最终显示完整内容，去掉光标
+                message_placeholder.markdown(full_response)
                 
                 # 把 AI 的回答存入记忆
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
                 
             except Exception as e:
-                message_placeholder.error(f"AI 接口调用失败，请检查 API Key 是否正确或额度是否耗尽。错误信息：{e}")
+                message_placeholder.error(f"AI 接口调用失败，请检查 API Key 是否正确。错误信息：{e}")
