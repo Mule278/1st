@@ -51,9 +51,9 @@ with st.sidebar:
     
     # AI 模型选择 (动态切换大脑)
     model_dict = {
-        "Flash Lite (极速响应)": "gemini-1.5-flash-8b",
-        "Flash (均衡分析)": "gemini-1.5-flash",
-        "Pro (深度推理)": "gemini-1.5-pro"
+        "Flash Lite (极速响应)": "gemini-3.5-flash-8b",
+        "Flash (均衡分析)": "gemini-3.5-flash",
+        "Pro (深度推理)": "gemini-3.1-pro"
     }
     selected_model_name = st.radio("🧠 选择 AI 大脑：", list(model_dict.keys()))
     actual_model_id = model_dict[selected_model_name]
